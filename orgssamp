@@ -1,0 +1,258 @@
+#include <a_samp>
+
+#define MAX_ORGS 16
+#define DIALOG_INVITE 1
+#define DIALOG_PROMOTE 2
+#define DIALOG_EXPEL 3
+#define DIALOG_YAKUZA 4
+#define DIALOG_MAFIA 5
+
+// Estrutura para armazenar informações da organização
+enum e_Org
+{
+    OrgName[32],       // Nome da organização/corporação
+    Float:OrgX,        // Coordenada X
+    Float:OrgY,        // Coordenada Y
+    Float:OrgZ,        // Coordenada Z
+    Float:BaseRadius,  // Raio da base
+    OrgMember[MAX_PLAYERS],  // Armazena se o jogador pertence à facção
+    OrgRole[MAX_PLAYERS]     // Armazena o cargo do jogador (Líder, Sub, Membro)
+};
+
+new Org[MAX_ORGS][e_Org]; // Array de organizações
+
+// Nomes das organizações
+new const OrgNames[MAX_ORGS][32] = 
+{
+    "Polícia Militar (PM)",
+    "Choque (Tropa de Elite)",
+    "BOPE (Batalhão de Operações Policiais Especiais)",
+    "Polícia Civil",
+    "FBI (Federal Bureau of Investigation)",
+    "SAMU (Serviço de Atendimento Móvel de Urgência)",
+    "Exército (Forças Armadas)",
+    "Guarda Municipal",
+    "Comando Vermelho (CV)",
+    "Primeiro Comando da Capital (PCC)",
+    "Máfia Russa",
+    "Yakuza (Máfia Japonesa)",
+    "Cartel de Medellín",
+    "Bonde dos 13",
+    "Gangue Grove Street",
+    "Ballas"
+};
+
+// Callback inicial
+public OnFilterScriptInit()
+{
+    // Configurar informações das organizações
+    for (new i = 0; i < MAX_ORGS; i++)
+    {
+        format(Org[i][OrgName], sizeof(Org[i][OrgName]), "%s", OrgNames[i]);
+        Org[i][OrgX] = 0.0;         // Inicializar posição X
+        Org[i][OrgY] = 0.0;         // Inicializar posição Y
+        Org[i][OrgZ] = 0.0;         // Inicializar posição Z
+        Org[i][BaseRadius] = 50.0;  // Raio padrão da base
+    }
+
+    print("FilterScript de Organizações e Corporações carregado.");
+    return 1;
+}
+
+// Função para verificar se o jogador está na base da organização
+bool:IsPlayerInOrgBase(playerid, orgid)
+{
+    new Float:px, Float:py, Float:pz;
+    GetPlayerPos(playerid, px, py, pz);
+    return (GetDistanceBetweenPoints(px, py, Org[orgid][OrgX], Org[orgid][OrgY]) <= Org[orgid][BaseRadius]);
+}
+
+// Comando para a Máfia Russa fabricar armas
+CMD:fabarma(playerid, params[])
+{
+    if (!Org[10][OrgMember][playerid])
+    {
+        return SendClientMessage(playerid, -1, "Você não pertence à Máfia Russa.");
+    }
+
+    if (!IsPlayerInOrgBase(playerid, 10))
+    {
+        return SendClientMessage(playerid, -1, "Você precisa estar na base da Máfia Russa para usar este comando.");
+    }
+
+    ShowPlayerDialog(playerid, DIALOG_MAFIA, DIALOG_STYLE_LIST, "Fabricar Armas - Máfia Russa", 
+        "AK-47\n"
+        "Desert Eagle\n",
+        "Fabricar", "Cancelar");
+    return 1;
+}
+
+// Comando para a Yakuza fabricar munições
+CMD:fabmunicao(playerid, params[])
+{
+    if (!Org[11][OrgMember][playerid])
+    {
+        return SendClientMessage(playerid, -1, "Você não pertence à Yakuza.");
+    }
+
+    if (!IsPlayerInOrgBase(playerid, 11))
+    {
+        return SendClientMessage(playerid, -1, "Você precisa estar na base da Yakuza para usar este comando.");
+    }
+
+    ShowPlayerDialog(playerid, DIALOG_YAKUZA, DIALOG_STYLE_LIST, "Fabricar Munições - Yakuza", 
+        "Munição para AK-47\n"
+        "Munição para Desert Eagle\n",
+        "Fabricar", "Cancelar");
+    return 1;
+}
+
+// Comando para setar a localização da base da organização
+CMD:setlocorg(playerid, params[])
+{
+    if (GetPlayerAdminLevel(playerid) < 1)  // Verifique se o jogador tem permissão
+    {
+        return SendClientMessage(playerid, -1, "Você não tem permissão para usar este comando.");
+    }
+
+    new orgid, Float:x, Float:y, Float:z, Float:radius;
+    if (sscanf(params, "ifff", orgid, x, y, z, radius))  // Verifica se os parâmetros foram passados corretamente
+    {
+        return SendClientMessage(playerid, -1, "Uso correto: /setlocorg [ID da Org] [X] [Y] [Z] [Raio]");
+    }
+
+    if (orgid < 0 || orgid >= MAX_ORGS)
+    {
+        return SendClientMessage(playerid, -1, "ID da organização inválido.");
+    }
+
+    Org[orgid][OrgX] = x;
+    Org[orgid][OrgY] = y;
+    Org[orgid][OrgZ] = z;
+    Org[orgid][BaseRadius] = radius;
+
+    SendClientMessage(playerid, -1, "A localização da base da organização foi atualizada com sucesso.");
+    return 1;
+}
+
+// Comando para adicionar jogador à organização e definí-lo como líder
+CMD:addplayerorg(playerid, params[])
+{
+    if (GetPlayerAdminLevel(playerid) < 1)  // Verifique se o jogador tem permissão
+    {
+        return SendClientMessage(playerid, -1, "Você não tem permissão para usar este comando.");
+    }
+
+    new targetid, orgid;
+    if (sscanf(params, "ii", targetid, orgid))  // Verifica se os parâmetros foram passados corretamente
+    {
+        return SendClientMessage(playerid, -1, "Uso correto: /addplayerorg [ID do Jogador] [ID da Org]");
+    }
+
+    if (targetid < 0 || targetid >= MAX_PLAYERS)
+    {
+        return SendClientMessage(playerid, -1, "ID do jogador inválido.");
+    }
+
+    if (orgid < 0 || orgid >= MAX_ORGS)
+    {
+        return SendClientMessage(playerid, -1, "ID da organização inválido.");
+    }
+
+    Org[orgid][OrgMember][targetid] = 1;  // Adiciona o jogador à organização
+    Org[orgid][OrgRole][targetid] = 2;    // Define o jogador como líder da organização
+
+    SendClientMessage(playerid, -1, "Jogador adicionado e definido como líder da organização.");
+    SendClientMessage(targetid, -1, "Você foi adicionado à organização e é o líder.");
+    return 1;
+}
+
+// Comando para recrutar jogador na organização (apenas para o líder)
+CMD:recrutar(playerid, params[])
+{
+    new targetid, orgid;
+    if (sscanf(params, "ii", targetid, orgid))
+    {
+        return SendClientMessage(playerid, -1, "Uso correto: /recrutar [ID do Jogador] [ID da Org]");
+    }
+
+    if (Org[orgid][OrgRole][playerid] != 2)  // Verifica se o jogador é líder
+    {
+        return SendClientMessage(playerid, -1, "Você não é o líder da organização.");
+    }
+
+    ShowPlayerDialog(targetid, DIALOG_INVITE, DIALOG_STYLE_MSGBOX, "Convite para a Organização", 
+        "Você foi convidado para a organização. Deseja entrar?", "Aceitar", "Recusar");
+    return 1;
+}
+
+// Comando para promover jogador dentro da organização (apenas para o líder)
+CMD:promover(playerid, params[])
+{
+    new targetid, orgid;
+    if (sscanf(params, "ii", targetid, orgid))
+    {
+        return SendClientMessage(playerid, -1, "Uso correto: /promover [ID do Jogador] [ID da Org]");
+    }
+
+    if (Org[orgid][OrgRole][playerid] != 2)  // Verifica se o jogador é líder
+    {
+        return SendClientMessage(playerid, -1, "Você não é o líder da organização.");
+    }
+
+    Org[orgid][OrgRole][targetid] = 1; // Promove para sub
+    SendClientMessage(playerid, -1, "Jogador promovido para sub da organização.");
+    return 1;
+}
+
+// Comando para expulsar jogador da organização (apenas para o líder ou sub)
+CMD:expulsar(playerid, params[])
+{
+    new targetid, orgid;
+    if (sscanf(params, "ii", targetid, orgid))
+    {
+        return SendClientMessage(playerid, -1, "Uso correto: /expulsar [ID do Jogador] [ID da Org]");
+    }
+
+    if (Org[orgid][OrgRole][playerid] < 1)  // Verifica se o jogador é líder ou sub
+    {
+        return SendClientMessage(playerid, -1, "Você não tem permissão para expulsar jogadores.");
+    }
+
+    Org[orgid][OrgMember][targetid] = 0;  // Remove o jogador da organização
+    Org[orgid][OrgRole][targetid] = 0;    // Remove o cargo do jogador
+    SendClientMessage(playerid, -1, "Jogador expulso da organização.");
+    SendClientMessage(targetid, -1, "Você foi expulso da organização.");
+    return 1;
+}
+
+// Callback para tratar os diálogos (convite)
+public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
+{
+    if (!response) return 0;
+
+    switch (dialogid)
+    {
+        case DIALOG_INVITE:
+        {
+            if (listitem == 0) // Aceitar convite
+            {
+                new orgid;
+                Org[orgid][OrgMember][playerid] = 1;  // Adiciona o jogador à organização
+                Org[orgid][OrgRole][playerid] = 3;    // Define o jogador como membro
+                SendClientMessage(playerid, -1, "Você entrou na organização.");
+            }
+            else // Recusar convite
+            {
+                SendClientMessage(playerid, -1, "Você recusou o convite para a organização.");
+            }
+        }
+    }
+    return 1;
+}
+
+// Função auxiliar para verificar se o jogador é líder ou sub da organização
+bool:IsPlayerLeaderOrSub(playerid, orgid)
+{
+    return (Org[orgid][OrgRole][playerid] == 1 || Org[orgid][OrgRole][playerid] == 2);
+}
